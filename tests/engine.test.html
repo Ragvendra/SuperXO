@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Super Tic Tac Toe — engine tests</title>
+<style>
+  body {
+    margin: 0; padding: 28px;
+    font: 15px/1.55 "SF Mono", Menlo, Consolas, monospace;
+    background: #05060f; color: #e8ecff;
+  }
+  h1 { font-size: 1.3rem; letter-spacing: .05em; margin: 0 0 4px; }
+  p.lead { color: #8d95c4; margin: 0 0 22px; }
+  #summary { padding: 14px 18px; border-radius: 12px; font-weight: 700; margin-bottom: 18px; }
+  #summary.ok { background: rgba(124,255,79,.14); border: 1px solid #7cff4f; color: #7cff4f; }
+  #summary.bad { background: rgba(255,77,94,.14); border: 1px solid #ff4d5e; color: #ff4d5e; }
+  #summary.running { background: rgba(34,232,255,.12); border: 1px solid #22e8ff; color: #22e8ff; }
+  ul { list-style: none; padding: 0; margin: 0; }
+  li { padding: 7px 12px; border-left: 3px solid #2a2f55; margin-bottom: 3px; background: rgba(255,255,255,.02); }
+  li.pass { border-left-color: #7cff4f; }
+  li.fail { border-left-color: #ff4d5e; background: rgba(255,77,94,.09); }
+  .tag { display: inline-block; width: 52px; font-weight: 700; }
+  li.pass .tag { color: #7cff4f; }
+  li.fail .tag { color: #ff4d5e; }
+  .why { display: block; margin: 4px 0 0 52px; color: #ff9aa4; font-size: .88rem; }
+  h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .2em; color: #8d95c4; margin: 26px 0 8px; }
+</style>
+</head>
+<body>
+
+<h1>Super Tic Tac Toe — engine tests</h1>
+<p class="lead">Every rule, plus undo, random-playout invariants and bot legality. No framework —
+everything runs in-page. Results appear as they finish; the Hard-bot tests search for a
+few seconds, so the last handful arrive more slowly than the rest.</p>
+<div id="summary">Running…</div>
+<div id="out"></div>
+
+<script src="../js/variants.js"></script>
+<script src="../js/engine.js"></script>
+<script src="../js/bot.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var Engine = STT.Engine;
+  var Bot = STT.Bot;
+  var queue = [];
+  var results = [];
+  var group = 'General';
+
+  function section(name) { group = name; }
+
+  /* Tests are queued rather than run on the spot. The Hard bot alone costs a
+     few seconds of blocking search, and running everything in one pass left
+     the page frozen on "Running…" until the whole suite finished. */
+  function test(name, fn) {
+    queue.push({ group: group, name: name, fn: fn });
+  }
+
+  function ok(cond, msg) {
+    if (!cond) throw new Error(msg || 'assertion failed');
+  }
+
+  function eq(actual, expected, msg) {
+    if (actual !== expected) {
+      throw new Error((msg || 'value') + ' — expected ' + JSON.stringify(expected) +
+        ', got ' + JSON.stringify(actual));
+    }
+  }
+
+  function hasEvent(events, type) {
+    return events.some(function (e) { return e.type === type; });
+  }
+
+  function eventOf(events, type) {
+    return events.filter(function (e) { return e.type === type; })[0];
+  }
+
+  /* Builds a position directly. The engine state is a plain object, so a test
+     can set one up without having to find a legal 40-move path to it. */
+  function pos(spec) {
+    var s = Engine.create();
+    if (spec.cells) {
+      Object.keys(spec.cells).forEach(function (b) {
+        Object.keys(spec.cells[b]).forEach(function (c) {
+          s.boards[b][c] = spec.cells[b][c];
+          s.moveCount++;
+        });
+      });
+    }
+    if (spec.status) {
+      Object.keys(spec.status).forEach(function (b) {
+        s.boardStatus[b] = spec.status[b];
+      });
+    }
+    s.current = spec.current || 'P1';
+    s.activeBoard = spec.active === undefined ? null : spec.active;
+    return s;
+  }
+
+  /* A filled 3x3 with no three in a row. */
+  var DEAD = { 0: 'P1', 1: 'P2', 2: 'P1', 3: 'P1', 4: 'P2', 5: 'P2', 6: 'P2', 7: 'P1', 8: 'P1' };
+
+  /* ---------------- rules 1-3: setup and the send-to-board rule ------------- */
+
+  section('Board and turn order');
+
+  test('a fresh game has 81 empty squares and no claimed boards', function () {
+    var s = Engine.create();
+    var empty = 0;
+    for (var b = 0; b < 9; b++) {
+      for (var c = 0; c < 9; c++) if (s.boards[b][c] === null) empty++;
+      eq(s.boardStatus[b], null, 'board ' + b + ' status');
+    }
+    eq(empty, 81, 'empty squares');
+  });
+
+  test('player one moves first and may play anywhere', function () {
+    var s = Engine.create();
+    eq(s.current, 'P1', 'starting player');
+    eq(s.activeBoard, null, 'active board');
+    eq(Engine.legalMoves(s).length, 81, 'legal moves on move one');
+  });
+
+  test('the bot can be given the opening move without swapping seats', function () {
+    var s = Engine.create('P2');
+    eq(s.current, 'P2', 'starting player');
+    eq(Engine.legalMoves(s).length, 81, 'legal moves');
+  });
+
+  test('the square you play sends the opponent to the matching board', function () {
+    var s = Engine.create();
+    var events = Engine.play(s, 0, 5);
+    ok(events, 'move should be legal');
+    eq(s.activeBoard, 5, 'active board after playing square 5');
+    eq(s.current, 'P2', 'turn passes');
+    ok(hasEvent(events, 'sentTo'), 'a sentTo event is emitted');
+    eq(eventOf(events, 'sentTo').board, 5, 'sentTo board');
+    eq(Engine.legalMoves(s).length, 9, 'opponent is confined to one board');
+  });
+
+  /* ---------------- rule 9: illegal moves ---------------- */
+
+  section('Illegal moves');
+
+  test('you cannot play outside the live board', function () {
+    var s = Engine.create();
+    Engine.play(s, 0, 5);
+    eq(Engine.isLegal(s, 3, 0), false, 'board 3 while sent to board 5');
+    eq(Engine.play(s, 3, 0), null, 'play returns null');
+    eq(s.moveCount, 1, 'the rejected move is not recorded');
+  });
+
+  test('you cannot play a square that is already taken', function () {
+    var s = pos({ cells: { 4: { 4: 'P1' } }, current: 'P2', active: 4 });
+    eq(Engine.isLegal(s, 4, 4), false, 'occupied square');
+    eq(Engine.play(s, 4, 4), null, 'play returns null');
+  });
+
+  test('you cannot play in a board that is already claimed', function () {
+    var s = pos({ status: { 2: 'P1' }, current: 'P2', active: null });
+    eq(Engine.isLegal(s, 2, 0), false, 'claimed board');
+    ok(Engine.playableBoards(s).indexOf(2) === -1, 'claimed board is not offered');
+  });
+
+  test('nothing is legal once the game is over', function () {
+    var s = pos({ status: { 0: 'P1', 1: 'P1', 2: 'P1' }, current: 'P2' });
+    s.winner = 'P1';
+    eq(Engine.legalMoves(s).length, 0, 'legal moves after the game ends');
+  });
+
+  /* ---------------- rules 5-6: claiming and killing a mini-board ---------- */
+
+  section('Mini-boards');
+
+  test('three in a row claims the mini-board', function () {
+    var s = pos({ cells: { 0: { 0: 'P1', 1: 'P1' } }, current: 'P1', active: 0 });
+    var events = Engine.play(s, 0, 2);
+    eq(s.boardStatus[0], 'P1', 'board status');
+    ok(hasEvent(events, 'boardWon'), 'boardWon event');
+    eq(eventOf(events, 'boardWon').player, 'P1', 'claiming player');
+    eq(Engine.claimedCount(s, 'P1'), 1, 'claimed count');
+  });
+
+  test('a full mini-board with no line is dead and counts for nobody', function () {
+    var cells = {};
+    Object.keys(DEAD).forEach(function (k) { if (k !== '8') cells[k] = DEAD[k]; });
+    var s = pos({ cells: { 0: cells }, current: 'P1', active: 0 });
+    var events = Engine.play(s, 0, 8);
+    eq(s.boardStatus[0], 'draw', 'board status');
+    ok(hasEvent(events, 'boardDrawn'), 'boardDrawn event');
+    eq(Engine.claimedCount(s, 'P1'), 0, 'P1 claimed count');
+    eq(Engine.claimedCount(s, 'P2'), 0, 'P2 claimed count');
+  });
+
+  test('a claimed board locks — no further play there', function () {
+    var s = pos({ cells: { 0: { 0: 'P1', 1: 'P1' } }, current: 'P1', active: 0 });
+    Engine.play(s, 0, 2);
+    eq(Engine.isLegal(s, 0, 3), false, 'empty square inside a claimed board');
+  });
+
+  /* ---------------- rule 4: the free move ---------------- */
+
+  section('Free moves');
+
+  test('being sent to a claimed board grants a free move', function () {
+    var s = pos({ status: { 6: 'P1' }, current: 'P1', active: 4 });
+    var events = Engine.play(s, 4, 6);
+    eq(s.activeBoard, null, 'active board');
+    ok(hasEvent(events, 'freeMove'), 'freeMove event');
+    ok(!hasEvent(events, 'sentTo'), 'no sentTo event');
+  });
+
+  test('being sent to a dead board grants a free move', function () {
+    var s = pos({ status: { 6: 'draw' }, current: 'P1', active: 4 });
+    Engine.play(s, 4, 6);
+    eq(s.activeBoard, null, 'active board');
+  });
+
+  test('a free move offers every open board and no locked ones', function () {
+    var s = pos({ status: { 0: 'P1', 1: 'draw' }, current: 'P2', active: null });
+    var boards = Engine.playableBoards(s);
+    eq(boards.length, 7, 'open board count');
+    ok(boards.indexOf(0) === -1 && boards.indexOf(1) === -1, 'locked boards excluded');
+  });
+
+  test('winning the board you were just sent to still frees the opponent', function () {
+    /* Playing square 0 of board 0 both claims board 0 and points at board 0. */
+    var s = pos({ cells: { 0: { 3: 'P1', 6: 'P1' } }, current: 'P1', active: 0 });
+    var events = Engine.play(s, 0, 0);
+    eq(s.boardStatus[0], 'P1', 'board 0 claimed');
+    eq(s.activeBoard, null, 'opponent is not sent into the locked board');
+    ok(hasEvent(events, 'freeMove'), 'freeMove event');
+  });
+
+  /* ---------------- rules 7-8: winning and drawing the game -------------- */
+
+  section('Winning the game');
+
+  test('three claimed boards in a line wins the game', function () {
+    var s = pos({
+      status: { 0: 'P1', 1: 'P1' },
+      cells: { 2: { 0: 'P1', 1: 'P1' } },
+      current: 'P1', active: 2
+    });
+    var events = Engine.play(s, 2, 2);
+    eq(s.winner, 'P1', 'winner');
+    ok(hasEvent(events, 'gameOver'), 'gameOver event');
+    eq(eventOf(events, 'gameOver').winner, 'P1', 'gameOver winner');
+    ok(s.winningLine, 'winning line recorded');
+  });
+
+  test('a dead board cannot complete a winning line', function () {
+    var s = pos({
+      status: { 0: 'P1', 1: 'draw' },
+      cells: { 2: { 0: 'P1', 1: 'P1' } },
+      current: 'P1', active: 2
+    });
+    Engine.play(s, 2, 2);
+    eq(s.boardStatus[2], 'P1', 'board 2 claimed');
+    eq(s.winner, null, 'no winner through a dead board');
+  });
+
+  test('all boards decided with no line is a draw', function () {
+    var status = { 0: 'P1', 1: 'P2', 2: 'P1', 3: 'P1', 4: 'P2', 5: 'P2', 6: 'P2', 7: 'P1' };
+    var cells = {};
+    Object.keys(DEAD).forEach(function (k) { if (k !== '8') cells[k] = DEAD[k]; });
+    var s = pos({ status: status, cells: { 8: cells }, current: 'P1', active: 8 });
+    var events = Engine.play(s, 8, 8);
+    eq(s.boardStatus[8], 'draw', 'last board is dead');
+    eq(s.winner, 'draw', 'game result');
+    eq(eventOf(events, 'gameOver').winner, 'draw', 'gameOver winner');
+  });
+
+  /* ---------------- undo ---------------- */
+
+  section('Undo');
+
+  test('undo takes back a move that claimed a board', function () {
+    var s = pos({ cells: { 0: { 0: 'P1', 1: 'P1' } }, current: 'P1', active: 0 });
+    Engine.play(s, 0, 2);
+    eq(s.boardStatus[0], 'P1', 'claimed before undo');
+    eq(Engine.undo(s), true, 'undo succeeds');
+    eq(s.boardStatus[0], null, 'claim reversed');
+    eq(s.boards[0][2], null, 'square cleared');
+    eq(s.current, 'P1', 'turn restored');
+    eq(s.activeBoard, 0, 'active board restored');
+  });
+
+  test('undo takes back a move that ended the game', function () {
+    var s = pos({
+      status: { 0: 'P1', 1: 'P1' },
+      cells: { 2: { 0: 'P1', 1: 'P1' } },
+      current: 'P1', active: 2
+    });
+    Engine.play(s, 2, 2);
+    eq(s.winner, 'P1', 'won before undo');
+    Engine.undo(s);
+    eq(s.winner, null, 'winner cleared');
+    ok(Engine.legalMoves(s).length > 0, 'play can resume');
+  });
+
+  test('undo refuses to go back past the start', function () {
+    var s = Engine.create();
+    eq(Engine.canUndo(s), false, 'canUndo on a fresh game');
+    eq(Engine.undo(s), false, 'undo returns false');
+  });
+
+  /* ---------------- invariants over random games ---------------- */
+
+  section('Random playouts');
+
+  test('300 random games all terminate with a consistent result', function () {
+    for (var g = 0; g < 300; g++) {
+      var s = Engine.create(g % 2 ? 'P2' : 'P1');
+      var moves = 0;
+      while (!s.winner) {
+        var legal = Engine.legalMoves(s);
+        ok(legal.length > 0, 'a game with no winner always has a legal move');
+        var m = legal[(Math.random() * legal.length) | 0];
+
+        /* The chosen board must be open, and must be the live one if there is one. */
+        eq(s.boardStatus[m.board], null, 'chosen board is open');
+        if (s.activeBoard !== null) eq(m.board, s.activeBoard, 'chosen board is the live one');
+
+        ok(Engine.play(s, m.board, m.cell), 'legal move was accepted');
+        moves++;
+        ok(moves <= 81, 'game finishes within 81 moves');
+      }
+
+      ok(s.winner === 'P1' || s.winner === 'P2' || s.winner === 'draw', 'valid result');
+      if (s.winner === 'draw') {
+        for (var b = 0; b < 9; b++) ok(s.boardStatus[b] !== null, 'draw means every board is decided');
+      } else {
+        s.winningLine.forEach(function (b) {
+          eq(s.boardStatus[b], s.winner, 'winning line board belongs to the winner');
+        });
+      }
+    }
+  });
+
+  /* ---------------- bot ---------------- */
+
+  section('Bot');
+
+  /* Walks a game, asking the bot for a move at each step. `maxMoves` caps how
+     far in we go — Hard costs up to 400ms a move, so a full 44-move game would
+     block the page for about nine seconds. */
+  function botPlayout(level, games, maxMoves) {
+    for (var g = 0; g < games; g++) {
+      var s = Engine.create();
+      var n = 0;
+      while (!s.winner && (!maxMoves || n < maxMoves)) {
+        var mv = Bot.chooseMove(s, level);
+        ok(mv, level + ' returned a move');
+        ok(Engine.isLegal(s, mv.board, mv.cell),
+          level + ' returned an illegal move: board ' + mv.board + ' square ' + mv.cell);
+        Engine.play(s, mv.board, mv.cell);
+        n++;
+      }
+    }
+  }
+
+  /* Hands the bot a game already 30 random moves deep, so its legality is
+     exercised in the endgame too — and cheaply, since few moves remain. */
+  function botFinishesGame(level) {
+    var s = Engine.create();
+    for (var i = 0; i < 30 && !s.winner; i++) {
+      var legal = Engine.legalMoves(s);
+      var m = legal[(Math.random() * legal.length) | 0];
+      Engine.play(s, m.board, m.cell);
+    }
+    while (!s.winner) {
+      var mv = Bot.chooseMove(s, level);
+      ok(Engine.isLegal(s, mv.board, mv.cell), level + ' returned an illegal endgame move');
+      Engine.play(s, mv.board, mv.cell);
+    }
+  }
+
+  test('easy only ever returns legal moves (12 full games)', function () {
+    botPlayout('easy', 12);
+  });
+
+  test('medium only ever returns legal moves (6 full games)', function () {
+    botPlayout('medium', 6);
+  });
+
+  test('hard only ever returns legal moves (opening, 10 moves)', function () {
+    botPlayout('hard', 1, 10);
+  });
+
+  test('hard only ever returns legal moves (endgame to completion)', function () {
+    botFinishesGame('hard');
+  });
+
+  test('every level takes an immediate game-winning move', function () {
+    ['easy', 'medium', 'hard'].forEach(function (level) {
+      var s = pos({
+        status: { 0: 'P1', 1: 'P1' },
+        cells: { 2: { 0: 'P1', 1: 'P1' } },
+        current: 'P1', active: 2
+      });
+      var mv = Bot.chooseMove(s, level);
+      eq(mv.board, 2, level + ' plays in the only open board');
+      eq(mv.cell, 2, level + ' completes the line');
+    });
+  });
+
+  test('medium and hard block an opponent about to win the game', function () {
+    /* Medium carries a little scoring jitter, so this has to hold repeatedly
+       rather than once. */
+    ['medium', 'hard'].forEach(function (level) {
+      var runs = level === 'medium' ? 25 : 3;
+      for (var i = 0; i < runs; i++) {
+        /* P1 owns boards 0 and 1 and is one square from claiming board 2.
+           P2 is on move inside board 2 and must take that square. */
+        var s = pos({
+          status: { 0: 'P1', 1: 'P1' },
+          cells: { 2: { 0: 'P1', 1: 'P1' } },
+          current: 'P2', active: 2
+        });
+        var mv = Bot.chooseMove(s, level);
+        eq(mv.cell, 2, level + ' blocks the winning square (run ' + (i + 1) + ')');
+      }
+    });
+  });
+
+  test('hard answers within a second even on an empty board', function () {
+    var s = Engine.create();
+    Engine.play(s, 0, 4);          // step off the opening-book move
+    var t0 = Date.now();
+    var mv = Bot.chooseMove(s, 'hard');
+    var elapsed = Date.now() - t0;
+    ok(Engine.isLegal(s, mv.board, mv.cell), 'move is legal');
+    ok(elapsed < 1000, 'hard took ' + elapsed + 'ms, expected under 1000ms');
+  });
+
+  /* ---------------- classic 3x3 ---------------- */
+
+  section('Classic 3×3');
+
+  test('a classic game is a single 3×3 board', function () {
+    var s = Engine.create('P1', 'classic');
+    eq(s.boards.length, 1, 'board count');
+    eq(Engine.isSingle(s), true, 'isSingle');
+    eq(Engine.legalMoves(s).length, 9, 'legal moves at the start');
+    eq(s.activeBoard, 0, 'the only board is live from the start, not a free move');
+  });
+
+  test('classic has no send-your-opponent rule', function () {
+    var s = Engine.create('P1', 'classic');
+    var events = Engine.play(s, 0, 5);
+    eq(s.activeBoard, 0, 'still the same board');
+    eq(s.current, 'P2', 'turn passes');
+    ok(!hasEvent(events, 'sentTo'), 'no sentTo event');
+    ok(!hasEvent(events, 'freeMove'), 'no freeMove event');
+    eq(Engine.legalMoves(s).length, 8, 'every remaining square stays legal');
+  });
+
+  test('three in a row wins a classic game outright', function () {
+    var s = Engine.create('P1', 'classic');
+    [0, 3, 1, 4].forEach(function (c) { Engine.play(s, 0, c); });
+    var events = Engine.play(s, 0, 2);       // P1 completes 0-1-2
+    eq(s.winner, 'P1', 'winner');
+    ok(hasEvent(events, 'boardWon'), 'boardWon event');
+    ok(hasEvent(events, 'gameOver'), 'gameOver event');
+    eq(s.winningLine, null, 'no macro line on a single board');
+    ok(s.boardLines[0], 'the winning cells are recorded on the board itself');
+  });
+
+  test('a full classic board with no line is a draw', function () {
+    var s = Engine.create('P1', 'classic');
+    var events = null;
+    [0, 1, 2, 4, 3, 5, 7, 6, 8].forEach(function (c) {
+      events = Engine.play(s, 0, c);
+      ok(events, 'square ' + c + ' was legal');
+    });
+    eq(s.boardStatus[0], 'draw', 'board is dead');
+    eq(s.winner, 'draw', 'game drawn');
+    ok(hasEvent(events, 'gameOver'), 'gameOver event');
+  });
+
+  test('undo works on a classic board', function () {
+    var s = Engine.create('P1', 'classic');
+    [0, 3, 1, 4].forEach(function (c) { Engine.play(s, 0, c); });
+    Engine.play(s, 0, 2);
+    eq(s.winner, 'P1', 'won before undo');
+    Engine.undo(s);
+    eq(s.winner, null, 'winner cleared');
+    eq(s.boards[0][2], null, 'square cleared');
+    eq(s.activeBoard, 0, 'board still live');
+  });
+
+  test('every level returns legal moves on a classic board', function () {
+    ['easy', 'medium', 'hard'].forEach(function (level) {
+      var s = Engine.create('P1', 'classic');
+      while (!s.winner) {
+        var mv = Bot.chooseMove(s, level);
+        ok(mv, level + ' returned a move');
+        ok(Engine.isLegal(s, mv.board, mv.cell),
+          level + ' returned an illegal classic move: square ' + (mv && mv.cell));
+        Engine.play(s, mv.board, mv.cell);
+      }
+    });
+  });
+
+  test('hard blocks an immediate classic threat', function () {
+    var s = Engine.create('P1', 'classic');
+    [0, 4, 1].forEach(function (c) { Engine.play(s, 0, c); });
+    var mv = Bot.chooseMove(s, 'hard');      // P2 must stop 0-1-2
+    eq(mv.cell, 2, 'hard blocks the winning square');
+  });
+
+  test('hard plays classic perfectly — always a draw against itself', function () {
+    /* Nobody can win 3×3 against correct play, whichever side opens. */
+    ['P1', 'P2'].forEach(function (first) {
+      var s = Engine.create(first, 'classic');
+      while (!s.winner) {
+        var mv = Bot.chooseMove(s, 'hard');
+        Engine.play(s, mv.board, mv.cell);
+      }
+      eq(s.winner, 'draw', 'hard vs hard opening with ' + first);
+    });
+  });
+
+  /* ---------------- run, one test per frame ---------------- */
+
+  var out = document.getElementById('out');
+  var summary = document.getElementById('summary');
+  var groups = {};
+  var total = queue.length;
+  var passed = 0;
+  var done = 0;
+
+  function renderResult(r) {
+    if (!groups[r.group]) {
+      var h = document.createElement('h2');
+      h.textContent = r.group;
+      out.appendChild(h);
+      groups[r.group] = document.createElement('ul');
+      out.appendChild(groups[r.group]);
+    }
+    var li = document.createElement('li');
+    li.className = r.ok ? 'pass' : 'fail';
+    var tag = document.createElement('span');
+    tag.className = 'tag';
+    tag.textContent = r.ok ? 'PASS' : 'FAIL';
+    li.appendChild(tag);
+    li.appendChild(document.createTextNode(r.name));
+    if (!r.ok) {
+      var why = document.createElement('span');
+      why.className = 'why';
+      why.textContent = r.why;
+      li.appendChild(why);
+    }
+    groups[r.group].appendChild(li);
+  }
+
+  function step() {
+    var t = queue.shift();
+    var r;
+    try {
+      t.fn();
+      r = { group: t.group, name: t.name, ok: true };
+    } catch (err) {
+      r = {
+        group: t.group, name: t.name, ok: false,
+        why: err && err.message ? err.message : String(err)
+      };
+    }
+    results.push(r);
+    renderResult(r);
+    done++;
+    if (r.ok) passed++;
+
+    if (queue.length) {
+      summary.textContent = 'Running… ' + done + ' of ' + total +
+        ' done — now: ' + queue[0].name;
+      /* Yield so the browser paints this result before the next test blocks. */
+      setTimeout(step, 0);
+      return;
+    }
+
+    var allPassed = passed === total;
+    summary.className = allPassed ? 'ok' : 'bad';
+    summary.textContent = allPassed
+      ? passed + ' / ' + total + ' tests passed'
+      : (total - passed) + ' of ' + total + ' tests FAILED';
+  }
+
+  summary.className = 'running';
+  summary.textContent = 'Running… 0 of ' + total;
+  setTimeout(step, 0);
+})();
+</script>
+</body>
+</html>

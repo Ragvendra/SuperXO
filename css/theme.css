@@ -1,0 +1,207 @@
+/* Palette, dark page shell, and the shared neon primitives.
+   --turn is rewritten by ui.js on every turn change; anything that should
+   answer "whose go is it" just refers to it. */
+
+:root {
+  --bg: #05060f;
+  --bg-glow: #131a4a;
+  --panel: rgba(18, 22, 50, 0.72);
+  --panel-solid: #11152e;
+  --line: #2a2f55;
+  --line-bright: #3d4488;
+  --text: #e8ecff;
+  --muted: #8d95c4;
+  --danger: #ff4d5e;
+
+  --p1: #22e8ff;
+  --p2: #ff4fd8;
+  --turn: var(--p1);
+
+  --radius: 16px;
+  --radius-lg: 24px;
+  --ease-bounce: cubic-bezier(0.34, 1.7, 0.42, 1);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+}
+
+body {
+  font-family: "Avenir Next", "Segoe UI", "Nunito", system-ui, -apple-system, sans-serif;
+  color: var(--text);
+  overflow-x: hidden;
+  /* Stop the page rubber-banding while you drag across the board. */
+  overscroll-behavior: none;
+  /* Deep indigo wash behind the board; the page edges stay flat and dark. */
+  background:
+    radial-gradient(ellipse 90% 60% at 50% 42%, var(--bg-glow) 0%, transparent 62%),
+    radial-gradient(ellipse 60% 40% at 50% 100%, #1a1040 0%, transparent 70%),
+    var(--bg);
+  background-attachment: fixed;
+}
+
+/* Drifting specks, done with gradients so there is no JS cost. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -50% -50%;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.5;
+  background-image:
+    radial-gradient(2px 2px at 20% 30%, rgba(255, 255, 255, 0.7), transparent),
+    radial-gradient(1.5px 1.5px at 70% 15%, rgba(140, 220, 255, 0.7), transparent),
+    radial-gradient(2px 2px at 85% 60%, rgba(255, 160, 240, 0.6), transparent),
+    radial-gradient(1.5px 1.5px at 35% 75%, rgba(255, 255, 255, 0.5), transparent),
+    radial-gradient(1.5px 1.5px at 12% 88%, rgba(160, 255, 220, 0.5), transparent),
+    radial-gradient(2px 2px at 58% 48%, rgba(255, 255, 255, 0.4), transparent);
+  background-size: 55% 55%;
+  animation: drift 90s linear infinite;
+}
+
+/* Vignette keeps the light pooled on the board. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: radial-gradient(ellipse 75% 65% at 50% 45%, transparent 40%, rgba(0, 0, 0, 0.72) 100%);
+}
+
+#app {
+  position: relative;
+  z-index: 2;
+  /* 100vh measures the area behind mobile browser toolbars, so the page ends up
+     taller than the screen and jumps as they collapse. dvh tracks the real
+     visible height; vh stays as the fallback for older browsers. */
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Touch tuning. `manipulation` removes the ~300ms double-tap-zoom delay, and
+   suppressing selection stops a long press popping up iOS's callout menu. */
+.btn,
+.cell,
+.mode-card,
+.symbol-btn,
+.color-btn,
+.opt-btn,
+.tab {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.board,
+.player-card,
+.turn-bar,
+.controls,
+.mode-row,
+.win-card {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+#fx {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+
+.hidden { display: none !important; }
+
+.glow-text {
+  text-shadow: 0 0 10px currentColor, 0 0 28px currentColor;
+}
+
+/* ---- symbols ---- */
+
+.glyph {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.glyph-icon {
+  fill: none;
+  stroke: var(--c, var(--text));
+  stroke-width: 8.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 3px var(--c, var(--text)))
+          drop-shadow(0 0 11px var(--c, var(--text)));
+}
+
+/* Emoji are full-colour images, so they get a halo rather than a tint. */
+.glyph-emoji {
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  font-size: 1em;
+  filter: drop-shadow(0 0 5px var(--c, var(--text)))
+          drop-shadow(0 0 16px var(--c, var(--text)));
+}
+
+/* ---- buttons ---- */
+
+.btn {
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 10px 20px;
+  cursor: pointer;
+  transition: transform 0.16s var(--ease-bounce), border-color 0.2s, box-shadow 0.2s, color 0.2s;
+}
+
+/* Hover effects only where a pointer actually hovers — on touch they latch on
+   after a tap and stay lit. */
+@media (hover: hover) {
+  .btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    border-color: var(--turn);
+    box-shadow: 0 0 18px -4px var(--turn);
+  }
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.96);
+  border-color: var(--turn);
+}
+
+.btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  font-size: 1.15rem;
+  padding: 16px 52px;
+  color: #04121a;
+  background: linear-gradient(135deg, var(--p1), var(--p2));
+  border: 0;
+  box-shadow: 0 0 30px -6px var(--p1), 0 0 44px -10px var(--p2);
+}
+
+@media (hover: hover) {
+  .btn-primary:hover {
+    box-shadow: 0 0 44px -4px var(--p1), 0 0 60px -6px var(--p2);
+  }
+}
+
+:focus-visible {
+  outline: 3px solid var(--turn);
+  outline-offset: 3px;
+}

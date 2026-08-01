@@ -1,0 +1,871 @@
+/* Screens, the nested board grid, the HUD, and the responsive rules. */
+
+.screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* viewport-fit=cover lets content run under notches and the iPhone home
+     indicator, so every edge takes the larger of the design padding and the
+     safe area. */
+  padding:
+    max(22px, env(safe-area-inset-top))
+    max(16px, env(safe-area-inset-right))
+    max(28px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
+}
+
+/* ================= setup ================= */
+
+.title {
+  margin: 8px 0 2px;
+  text-align: center;
+  font-size: clamp(2rem, 7vw, 3.6rem);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  color: var(--p1);
+  text-shadow: 0 0 14px var(--p1), 0 0 40px rgba(34, 232, 255, 0.5);
+}
+
+.title span {
+  display: block;
+  font-size: 0.46em;
+  letter-spacing: 0.34em;
+  color: var(--p2);
+  text-shadow: 0 0 14px var(--p2), 0 0 40px rgba(255, 79, 216, 0.5);
+  margin-top: 10px;
+}
+
+.subtitle {
+  color: var(--muted);
+  text-align: center;
+  margin: 14px 0 22px;
+  font-size: 0.95rem;
+}
+
+.section-label {
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin: 0 0 10px;
+  text-align: center;
+}
+
+.mode-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 26px;
+}
+
+.mode-card {
+  font: inherit;
+  color: var(--text);
+  width: 210px;
+  padding: 20px 18px;
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  border: 2px solid var(--line);
+  cursor: pointer;
+  text-align: center;
+  transition: transform 0.2s var(--ease-bounce), border-color 0.2s, box-shadow 0.2s;
+}
+
+@media (hover: hover) {
+  .mode-card:hover { transform: translateY(-4px); }
+}
+
+.mode-card:active { transform: scale(0.98); }
+
+.mode-card[aria-pressed="true"] {
+  border-color: var(--p1);
+  box-shadow: 0 0 32px -8px var(--p1), inset 0 0 30px -22px var(--p1);
+}
+
+.mode-card .mode-icon { font-size: 2.2rem; line-height: 1; }
+.mode-card .mode-name { font-weight: 700; margin-top: 10px; letter-spacing: 0.04em; }
+.mode-card .mode-blurb { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
+
+.players-row {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  justify-content: center;
+  width: 100%;
+  max-width: 900px;
+}
+
+.setup-panel {
+  flex: 1 1 330px;
+  max-width: 420px;
+  padding: 20px;
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: inset 0 0 40px -30px var(--seat, var(--p1));
+}
+
+.sp-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.sp-preview {
+  width: 60px;
+  height: 60px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid var(--line);
+  font-size: 34px;
+}
+
+.sp-seat {
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--seat, var(--p1));
+}
+
+.name-input {
+  font: inherit;
+  font-weight: 700;
+  font-size: 1.1rem;
+  width: 100%;
+  margin-top: 4px;
+  padding: 6px 10px;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.name-input:focus { border-color: var(--seat, var(--p1)); outline: none; }
+
+.tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+
+.tab {
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  flex: 1;
+  padding: 8px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.tab[aria-selected="true"] {
+  color: var(--text);
+  border-color: var(--seat, var(--p1));
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.symbol-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.symbol-btn {
+  position: relative;
+  aspect-ratio: 1;
+  padding: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.16s var(--ease-bounce), border-color 0.2s, box-shadow 0.2s;
+}
+
+@media (hover: hover) {
+  .symbol-btn:hover:not(:disabled) { transform: scale(1.1); }
+}
+
+.symbol-btn:active:not(:disabled) { transform: scale(0.94); }
+
+.symbol-btn[aria-pressed="true"] {
+  border-color: var(--seat, var(--p1));
+  box-shadow: 0 0 20px -5px var(--seat, var(--p1));
+}
+
+.symbol-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+
+.symbol-btn.taken::after {
+  content: "taken";
+  position: absolute;
+  bottom: 2px;
+  left: 0;
+  right: 0;
+  font-size: 0.5rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.color-row { display: flex; gap: 10px; margin-top: 14px; justify-content: center; }
+
+.color-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: var(--sw);
+  cursor: pointer;
+  box-shadow: 0 0 14px -3px var(--sw);
+  transition: transform 0.16s var(--ease-bounce);
+}
+
+@media (hover: hover) {
+  .color-btn:hover:not(:disabled) { transform: scale(1.18); }
+}
+.color-btn[aria-pressed="true"] { border-color: #fff; transform: scale(1.18); }
+.color-btn:disabled { opacity: 0.2; cursor: not-allowed; }
+
+.bot-options {
+  width: 100%;
+  max-width: 900px;
+  margin-top: 20px;
+  padding: 18px 20px;
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+
+.opt-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.opt-row + .section-label { margin-top: 20px; }
+
+.opt-btn {
+  font: inherit;
+  font-size: 0.86rem;
+  color: var(--text);
+  padding: 10px 18px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 0.16s var(--ease-bounce), border-color 0.2s, box-shadow 0.2s;
+}
+
+.opt-btn small { display: block; color: var(--muted); font-size: 0.72rem; margin-top: 2px; }
+@media (hover: hover) {
+  .opt-btn:hover { transform: translateY(-2px); }
+}
+
+.opt-btn:active { transform: scale(0.97); }
+
+.opt-btn[aria-pressed="true"] {
+  border-color: var(--p2);
+  box-shadow: 0 0 22px -6px var(--p2);
+}
+
+.setup-actions {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 28px;
+}
+
+/* ================= game ================= */
+
+.turn-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.turn-pill {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 26px 10px 12px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 2px solid var(--turn);
+  box-shadow: 0 0 30px -8px var(--turn), inset 0 0 30px -24px var(--turn);
+}
+
+.turn-symbol {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  font-size: 26px;
+  display: grid;
+  place-items: center;
+}
+
+.turn-text {
+  font-weight: 800;
+  font-size: clamp(0.95rem, 2.6vw, 1.25rem);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--turn);
+  text-shadow: 0 0 14px var(--turn);
+}
+
+.free-badge {
+  padding: 5px 16px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #04121a;
+  background: linear-gradient(135deg, #ffe14f, #ffa63d);
+  box-shadow: 0 0 22px -4px #ffc53d;
+}
+
+.arena {
+  display: grid;
+  grid-template-columns: minmax(150px, 210px) auto minmax(150px, 210px);
+  align-items: center;
+  gap: clamp(12px, 3vw, 34px);
+}
+
+.player-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  border: 2px solid var(--line);
+  transition: transform 0.3s var(--ease-bounce), border-color 0.3s, box-shadow 0.3s, opacity 0.3s;
+  opacity: 0.5;
+}
+
+.player-card.is-turn {
+  opacity: 1;
+  transform: translateY(-6px) scale(1.04);
+  border-color: var(--seat);
+  box-shadow: 0 0 34px -8px var(--seat), inset 0 0 40px -30px var(--seat);
+}
+
+.pc-top { display: flex; align-items: center; gap: 12px; }
+
+.pc-avatar {
+  width: 46px;
+  height: 46px;
+  flex: none;
+  font-size: 27px;
+  display: grid;
+  place-items: center;
+}
+
+.pc-name {
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: var(--seat);
+  overflow-wrap: anywhere;
+}
+
+/* Keeps "Bot · Medium" on one line so the two cards stay the same height. */
+.pc-role { white-space: nowrap; }
+
+.pc-meta { font-size: 0.74rem; color: var(--muted); margin-top: 2px; }
+.pc-meta b { color: var(--text); font-size: 0.9rem; }
+
+.pc-thinking {
+  display: none;
+  gap: 5px;
+  align-items: center;
+  margin-top: 8px;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--seat);
+}
+
+.player-card.thinking .pc-thinking { display: flex; }
+
+.pc-thinking i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--seat);
+  display: inline-block;
+}
+
+/* ---- the board ---- */
+
+.board {
+  /* The dvh line wins where supported and tracks the real visible height;
+     browsers without it fall back to the vh line above. */
+  --size: min(90vw, 64vh, 620px);
+  --size: min(90vw, 64dvh, 620px);
+  width: var(--size);
+  height: var(--size);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(40, 50, 120, 0.35), rgba(6, 8, 22, 0.9));
+  border: 1px solid var(--line-bright);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.03),
+    0 0 70px -14px var(--turn),
+    0 24px 70px -30px #000,
+    inset 0 0 60px -40px var(--turn);
+  transition: box-shadow 0.45s ease;
+}
+
+.mini {
+  position: relative;
+  border-radius: 14px;
+  background: rgba(8, 11, 28, 0.72);
+  border: 1px solid var(--line);
+  transition: transform 0.3s var(--ease-bounce), opacity 0.3s, filter 0.3s, box-shadow 0.3s;
+}
+
+.mini-cells {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 4px;
+  padding: 7px;
+}
+
+/* Boards you cannot play in recede, but stay readable — you need to see the
+   whole position to plan, and the live board already pops via scale, border,
+   brackets and marching ants. */
+.mini.dim {
+  opacity: 0.5;
+  filter: saturate(0.55) blur(0.3px);
+}
+
+.mini.active {
+  transform: scale(1.03);
+  border-color: var(--turn);
+  box-shadow: 0 0 34px -6px var(--turn), inset 0 0 34px -26px var(--turn);
+  z-index: 3;
+}
+
+/* Free move: every open board is offered, a touch more softly than the
+   single live board gets. */
+.mini.offered {
+  border-color: color-mix(in srgb, var(--turn) 65%, transparent);
+}
+
+.mini-brackets {
+  position: absolute;
+  inset: -3px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+  --bw: 3px;
+  --bl: 16px;
+  background:
+    linear-gradient(var(--turn), var(--turn)) top left / var(--bl) var(--bw) no-repeat,
+    linear-gradient(var(--turn), var(--turn)) top left / var(--bw) var(--bl) no-repeat,
+    linear-gradient(var(--turn), var(--turn)) top right / var(--bl) var(--bw) no-repeat,
+    linear-gradient(var(--turn), var(--turn)) top right / var(--bw) var(--bl) no-repeat,
+    linear-gradient(var(--turn), var(--turn)) bottom left / var(--bl) var(--bw) no-repeat,
+    linear-gradient(var(--turn), var(--turn)) bottom left / var(--bw) var(--bl) no-repeat,
+    linear-gradient(var(--turn), var(--turn)) bottom right / var(--bl) var(--bw) no-repeat,
+    linear-gradient(var(--turn), var(--turn)) bottom right / var(--bw) var(--bl) no-repeat;
+  filter: drop-shadow(0 0 6px var(--turn));
+}
+
+.mini.active .mini-brackets { opacity: 1; }
+
+.cell {
+  position: relative;
+  padding: 9%;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: calc(var(--size) / 15);
+  transition: background 0.2s, transform 0.15s;
+}
+
+/* Letting clicks fall through to the mini-board is what makes the
+   "you can't play there" shake possible. */
+.cell:disabled { cursor: default; pointer-events: none; }
+
+@media (hover: hover) {
+  .cell:not(:disabled):hover { background: rgba(255, 255, 255, 0.09); }
+}
+
+.cell:not(:disabled):active { background: rgba(255, 255, 255, 0.16); }
+
+.cell.p1 { --c: var(--p1); }
+.cell.p2 { --c: var(--p2); }
+
+/* Ghost preview of the symbol you are about to place. */
+.cell .ghost { opacity: 0.24; }
+
+.mini-line {
+  position: absolute;
+  inset: 7px;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.mini-line line {
+  stroke: var(--c, #fff);
+  stroke-width: 0.14;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 0.08px var(--c)) drop-shadow(0 0 0.2px var(--c));
+}
+
+/* The giant symbol stamped over a claimed board. */
+.mini-claim {
+  position: absolute;
+  inset: 12%;
+  display: none;
+  place-items: center;
+  pointer-events: none;
+  font-size: calc(var(--size) / 5);
+  z-index: 2;
+}
+
+.mini.claimed .mini-claim { display: grid; }
+.mini.claimed .mini-cells { opacity: 0.16; }
+.mini.claimed { border-width: 2px; }
+
+.mini.claimed-p1 {
+  --c: var(--p1);
+  border-color: var(--p1);
+  background: color-mix(in srgb, var(--p1) 9%, transparent);
+}
+
+.mini.claimed-p2 {
+  --c: var(--p2);
+  border-color: var(--p2);
+  background: color-mix(in srgb, var(--p2) 9%, transparent);
+}
+
+.mini.dead { border-style: dashed; }
+.mini.dead .mini-cells { opacity: 0.28; filter: grayscale(1); }
+
+.mini.winline { box-shadow: 0 0 46px -4px var(--c); }
+
+/* Classic 3×3: one board fills the whole frame. It gets no lift (that would
+   push it outside the frame), a chunkier grid, and far bigger symbols. */
+.board.variant-single {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+
+.board.variant-single .mini-cells { gap: 8px; padding: 12px; }
+.board.variant-single .mini.active { transform: none; }
+
+.board.variant-single .cell {
+  border-radius: 14px;
+  font-size: calc(var(--size) / 5);
+}
+
+.board.variant-single .mini-line { inset: 12px; }
+.board.variant-single .mini-line line { stroke-width: 0.1; }
+
+.controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 22px;
+}
+
+/* ================= overlays ================= */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(3, 4, 14, 0.82);
+  backdrop-filter: blur(6px);
+}
+
+.win-card {
+  text-align: center;
+  padding: 40px 44px;
+  border-radius: var(--radius-lg);
+  background: var(--panel-solid);
+  border: 2px solid var(--turn);
+  box-shadow: 0 0 70px -12px var(--turn);
+  max-width: 90vw;
+}
+
+.win-trophy { font-size: 4.4rem; line-height: 1; }
+
+.win-symbol {
+  width: 92px;
+  height: 92px;
+  margin: 10px auto;
+  font-size: 66px;
+  display: grid;
+  place-items: center;
+}
+
+.win-banner {
+  font-size: clamp(1.5rem, 6vw, 2.8rem);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  margin: 8px 0 4px;
+}
+
+.win-banner span { display: inline-block; white-space: pre; }
+
+.win-sub { color: var(--muted); margin-bottom: 26px; }
+
+.win-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+.panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 58;
+  width: min(420px, 92vw);
+  height: 100%;
+  overflow-y: auto;
+  padding: 26px 26px 40px;
+  background: var(--panel-solid);
+  border-left: 1px solid var(--line-bright);
+  box-shadow: -20px 0 60px -20px #000;
+  transform: translateX(100%);
+  transition: transform 0.35s var(--ease-bounce);
+}
+
+.panel.open { transform: translateX(0); }
+
+.panel h2 { margin: 0 0 4px; letter-spacing: 0.04em; }
+.panel h3 { margin: 26px 0 8px; font-size: 0.95rem; color: var(--p1); letter-spacing: 0.04em; }
+.panel ol { padding-left: 20px; line-height: 1.65; color: #cfd6ff; }
+.panel li { margin-bottom: 10px; }
+.panel li b { color: var(--p2); }
+
+.panel-close {
+  position: absolute;
+  top: 18px;
+  right: 20px;
+  font-size: 1.4rem;
+  line-height: 1;
+  padding: 4px 12px;
+}
+
+/* A before/after diagram of the send-your-opponent rule: the square you play
+   on the left, the board it points at on the right. */
+.rule-demo-pair {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 16px 0 10px;
+}
+
+.rule-arrow { font-size: 1.5rem; color: var(--muted); }
+
+.rule-demo {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  width: 116px;
+  margin: 0 auto 6px;
+}
+
+.rule-demo i {
+  aspect-ratio: 1;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+  display: grid;
+  place-items: center;
+  font-size: 0.78rem;
+  font-style: normal;
+}
+
+/* The right-hand grid stands for whole mini-boards, so its cells get an
+   inner grid texture to read as boards rather than squares. */
+.rule-demo.big i {
+  background-image:
+    linear-gradient(var(--line), var(--line)),
+    linear-gradient(var(--line), var(--line)),
+    linear-gradient(var(--line), var(--line)),
+    linear-gradient(var(--line), var(--line));
+  background-size: 100% 1px, 100% 1px, 1px 100%, 1px 100%;
+  background-position: 0 33%, 0 67%, 33% 0, 67% 0;
+  background-repeat: no-repeat;
+}
+
+.rule-demo i.from {
+  border-color: var(--p1);
+  color: var(--p1);
+  box-shadow: 0 0 14px -4px var(--p1);
+  background-color: color-mix(in srgb, var(--p1) 14%, transparent);
+}
+
+.rule-demo i.to {
+  border-color: var(--p2);
+  box-shadow: 0 0 18px -3px var(--p2);
+  background-color: color-mix(in srgb, var(--p2) 14%, transparent);
+}
+
+.rule-caption { text-align: center; color: var(--muted); font-size: 0.8rem; }
+
+/* iOS install hint — a dismissible pill sitting above the home indicator. */
+.ios-hint {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: max(14px, env(safe-area-inset-bottom));
+  z-index: 57;
+  width: min(420px, calc(100vw - 24px));
+  padding: 14px 42px 14px 18px;
+  border-radius: 16px;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--text);
+  background: var(--panel-solid);
+  border: 1px solid var(--p1);
+  box-shadow: 0 0 34px -8px var(--p1), 0 14px 40px -18px #000;
+}
+
+.ios-hint b { color: var(--p1); }
+
+.ios-hint-close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font: inherit;
+  font-size: 1.3rem;
+  line-height: 1;
+  padding: 4px 9px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* ================= responsive ================= */
+
+@media (max-width: 860px) {
+  .arena {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "p1 p2"
+      "board board";
+    gap: 12px;
+    justify-items: center;
+  }
+
+  #cardP1 { grid-area: p1; }
+  #cardP2 { grid-area: p2; }
+  .board-wrap { grid-area: board; margin-top: 10px; }
+
+  .player-card { width: 100%; padding: 12px; }
+  .player-card.is-turn { transform: translateY(-3px) scale(1.02); }
+  .pc-avatar { width: 34px; height: 34px; font-size: 21px; }
+  .pc-name { font-size: 0.9rem; }
+
+  .board {
+    --size: min(94vw, 52vh, 520px);
+    --size: min(94vw, 52dvh, 520px);
+    gap: 8px;
+    padding: 9px;
+  }
+  .symbol-grid { grid-template-columns: repeat(5, 1fr); }
+  .controls .btn { padding: 9px 15px; font-size: 0.85rem; }
+}
+
+@media (max-width: 520px) {
+  .screen {
+    padding:
+      max(14px, env(safe-area-inset-top))
+      max(10px, env(safe-area-inset-right))
+      max(20px, env(safe-area-inset-bottom))
+      max(10px, env(safe-area-inset-left));
+  }
+
+  .board {
+    --size: min(96vw, 48vh, 440px);
+    --size: min(96vw, 48dvh, 440px);
+    gap: 6px;
+    padding: 7px;
+  }
+  .mini-cells { gap: 3px; padding: 5px; }
+  .mode-card { width: 100%; max-width: 320px; }
+}
+
+/* Landscape phones. Height is the constraint here, so the stacked layout above
+   would leave a board barely 180px across. Put the cards back beside it, size
+   it off the short axis, and shrink the chrome. Must stay last in the file so
+   it overrides the width-based rules above. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .screen {
+    padding:
+      max(8px, env(safe-area-inset-top))
+      max(10px, env(safe-area-inset-right))
+      max(8px, env(safe-area-inset-bottom))
+      max(10px, env(safe-area-inset-left));
+  }
+
+  .arena {
+    grid-template-columns: minmax(110px, 180px) auto minmax(110px, 180px);
+    grid-template-areas: none;
+    gap: clamp(8px, 2vw, 22px);
+  }
+
+  #cardP1, #cardP2, .board-wrap { grid-area: auto; }
+  .board-wrap { margin-top: 0; }
+
+  .board {
+    --size: min(72vh, 46vw, 520px);
+    --size: min(72dvh, 46vw, 520px);
+    gap: 6px;
+    padding: 7px;
+  }
+
+  /* Sit the free-move badge beside the pill rather than under it — stacked it
+     costs ~33px of the little height a landscape phone has. */
+  .turn-bar {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .turn-pill { padding: 5px 16px 5px 8px; gap: 9px; }
+  .turn-symbol { width: 26px; height: 26px; font-size: 17px; }
+  .turn-text { font-size: 0.8rem; }
+  .free-badge { padding: 3px 12px; font-size: 0.58rem; }
+
+  .player-card { padding: 8px 10px; }
+  .player-card.is-turn { transform: translateY(-2px) scale(1.02); }
+  .pc-avatar { width: 28px; height: 28px; font-size: 17px; }
+  .pc-name { font-size: 0.8rem; }
+  .pc-role, .pc-meta, .pc-thinking { font-size: 0.64rem; }
+
+  .controls { margin-top: 8px; gap: 6px; }
+  .controls .btn { padding: 6px 12px; font-size: 0.74rem; }
+
+  .title { font-size: clamp(1.3rem, 4.5vw, 2rem); }
+  .subtitle { margin: 8px 0 12px; font-size: 0.82rem; }
+  .setup-actions { margin-top: 16px; }
+}
