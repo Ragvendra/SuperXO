@@ -60,7 +60,7 @@
       cardP2: $('cardP2'),
       undoBtn: $('undoBtn'),
       restartBtn: $('restartBtn'),
-      symbolsBtn: $('symbolsBtn'),
+      endBtn: $('endBtn'),
       winOverlay: $('winOverlay'),
       winCard: $('winCard')
     };
@@ -79,11 +79,43 @@
 
     els.undoBtn.addEventListener('click', undo);
     els.restartBtn.addEventListener('click', restart);
-    els.symbolsBtn.addEventListener('click', function () {
-      FX.clear();
-      hideWin();
-      if (hooks.onExit) hooks.onExit();
-    });
+    els.endBtn.addEventListener('click', onEndGame);
+  }
+
+  /* ---- leaving a game ---- */
+
+  var endArmed = false;
+  var endTimer = null;
+
+  function exitToMenu() {
+    disarmEnd();
+    FX.clear();
+    hideWin();
+    if (hooks.onExit) hooks.onExit();
+  }
+
+  function disarmEnd() {
+    endArmed = false;
+    if (endTimer) { clearTimeout(endTimer); endTimer = null; }
+    if (els.endBtn) {
+      els.endBtn.textContent = '⏹ End game';
+      els.endBtn.classList.remove('confirming');
+    }
+  }
+
+  /* Confirm inline rather than with a dialog, and only bother asking when
+     there is actually a game in progress to throw away. */
+  function onEndGame() {
+    var inProgress = state && state.moveCount > 0 && !state.winner;
+    if (!inProgress || endArmed) {
+      exitToMenu();
+      return;
+    }
+    endArmed = true;
+    els.endBtn.textContent = 'Sure? End game';
+    els.endBtn.classList.add('confirming');
+    FX.sound.click();
+    endTimer = setTimeout(disarmEnd, 3000);
   }
 
   /* ---- board construction (once per game) ---- */
@@ -215,6 +247,7 @@
       var ev = events[i++];
       var done;
       if (ev.type === 'placed') done = animatePlace(ev);
+      else if (ev.type === 'vanished') done = vanishMark(ev);
       else if (ev.type === 'boardWon') done = celebrateBoard(ev);
       else if (ev.type === 'boardDrawn') done = killBoard(ev);
       else if (ev.type === 'gameOver') done = finish(ev);
@@ -256,6 +289,22 @@
     FX.sparkle(p.x, p.y, cfg[ev.player].color, 9);
     FX.sound.place(ev.player);
     return sleep(reduced() ? 30 : 210);
+  }
+
+  /* Cyclic: a retiring mark puffs out rather than blinking away. */
+  function vanishMark(ev) {
+    var btn = cellEls[ev.board][ev.cell];
+    var glyph = btn.querySelector('.glyph:not(.ghost)');
+    var p = centerOf(btn);
+
+    FX.smoke(p.x, p.y, 10);
+    FX.sound.boardDead();
+    if (glyph) glyph.classList.add('vanishing');
+
+    return sleep(reduced() ? 30 : 360).then(function () {
+      btn.innerHTML = '';
+      btn.classList.remove('p1', 'p2', 'doomed');
+    });
   }
 
   function drawMiniLine(svg, line, color) {
@@ -388,13 +437,25 @@
     card.appendChild(banner);
 
     var variant = STT.Variants.get(cfg.variant);
+    var rules = STT.Rules.get(cfg.rules);
+
+    var why;
+    if (winner) {
+      why = rules.misere
+        ? 'The other player made three in a row.'
+        : variant.winLabel;
+      why += ' ' + score.P1 + ' – ' + score.P2 + ' this session.';
+    } else if (rules.maxMarks) {
+      why = 'Neither of you could force it before the marks ran out of patience.';
+    } else if (variant.boards === 1) {
+      why = 'The board is full and nobody got three in a row.';
+    } else {
+      why = 'Every board is decided and nobody got three in a row.';
+    }
+
     var sub = document.createElement('div');
     sub.className = 'win-sub';
-    sub.textContent = winner
-      ? variant.winLabel + ' ' + score.P1 + ' – ' + score.P2 + ' this session.'
-      : (variant.boards === 1
-        ? 'The board is full and nobody got three in a row.'
-        : 'Every board is decided and nobody got three in a row.');
+    sub.textContent = why;
     card.appendChild(sub);
 
     var actions = document.createElement('div');
@@ -407,12 +468,8 @@
 
     var change = document.createElement('button');
     change.className = 'btn';
-    change.textContent = 'Change symbols';
-    change.addEventListener('click', function () {
-      FX.clear();
-      hideWin();
-      if (hooks.onExit) hooks.onExit();
-    });
+    change.textContent = 'Main menu';
+    change.addEventListener('click', exitToMenu);
 
     actions.appendChild(again);
     actions.appendChild(change);
@@ -547,10 +604,23 @@
     els.undoBtn.disabled = busy || !Engine.canUndo(state);
   }
 
+  /* Cyclic: flag the mark that goes next, so the rule feels fair rather than
+     like the board is eating pieces at random. */
+  function syncDoomed() {
+    for (var b = 0; b < state.boards.length; b++) {
+      for (var c = 0; c < 9; c++) cellEls[b][c].classList.remove('doomed');
+    }
+    if (!state.maxMarks || state.winner || busy) return;
+
+    var d = Engine.doomedMark(state, state.current);
+    if (d) cellEls[d.board][d.cell].classList.add('doomed');
+  }
+
   function syncAll() {
     syncCells();
     syncBoardStatus();
     syncActive();
+    syncDoomed();
     syncHud();
   }
 
@@ -610,8 +680,9 @@
 
   function start(config) {
     cfg = config;
-    state = Engine.create(resolveFirst(), cfg.variant);
+    state = Engine.create(resolveFirst(), cfg.variant, cfg.rules);
     busy = false;
+    disarmEnd();
     applyTheme();
     buildBoard();
     hideWin();
@@ -622,8 +693,9 @@
 
   function restart() {
     if (!cfg) return;
-    state = Engine.create(resolveFirst(), cfg.variant);
+    state = Engine.create(resolveFirst(), cfg.variant, cfg.rules);
     busy = false;
+    disarmEnd();
     hideWin();
     FX.clear();
     buildBoard();

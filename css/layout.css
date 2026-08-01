@@ -85,6 +85,21 @@
   box-shadow: 0 0 32px -8px var(--p1), inset 0 0 30px -22px var(--p1);
 }
 
+/* A board shape the chosen rules can't be played on. */
+.mode-card.blocked {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-style: dashed;
+}
+
+.mode-note {
+  margin-top: 8px;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--danger);
+}
+
 .mode-card .mode-icon { font-size: 2.2rem; line-height: 1; }
 .mode-card .mode-name { font-weight: 700; margin-top: 10px; letter-spacing: 0.04em; }
 .mode-card .mode-blurb { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }

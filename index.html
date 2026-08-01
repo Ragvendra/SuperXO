@@ -35,6 +35,9 @@
     <p class="section-label">Choose a board</p>
     <div class="mode-row" id="variantRow"></div>
 
+    <p class="section-label">Choose the rules</p>
+    <div class="mode-row" id="rulesRow"></div>
+
     <p class="section-label">Choose a game</p>
     <div class="mode-row" id="modeRow">
       <button type="button" class="mode-card" data-mode="friend" aria-pressed="true">
@@ -146,7 +149,7 @@
       <button type="button" class="btn" id="undoBtn">↶ Undo</button>
       <button type="button" class="btn" id="restartBtn">↻ Restart</button>
       <button type="button" class="btn" id="resetScoreBtn">Reset score</button>
-      <button type="button" class="btn" id="symbolsBtn">Symbols</button>
+      <button type="button" class="btn" id="endBtn">⏹ End game</button>
       <button type="button" class="btn" id="rulesBtn">Rules</button>
       <button type="button" class="btn" id="muteBtn" aria-pressed="false">🔊 Sound</button>
     </div>
@@ -161,6 +164,29 @@
   <aside class="panel" id="rulesPanel" aria-label="How to play" aria-hidden="true">
     <button type="button" class="btn panel-close" id="rulesClose" aria-label="Close rules">×</button>
     <h2>How to play</h2>
+
+    <div id="rulesCyclic" class="hidden">
+      <h3>Cyclic — nobody can draw</h3>
+      <ol>
+        <li>You only ever have <b>three marks</b> on the board.</li>
+        <li>Place a fourth and your <b>oldest one vanishes</b> in a puff of smoke.</li>
+        <li>The mark about to go is shown faded, so you always know what you are giving up.</li>
+        <li>Three in a row still wins — but the board never fills, so <b>a draw is impossible</b>.</li>
+        <li>If nobody has forced it after 60 moves, the game is called a draw anyway.</li>
+      </ol>
+      <p class="rule-caption">This is the cure for Classic 3×3 always ending level.</p>
+    </div>
+
+    <div id="rulesMisere" class="hidden">
+      <h3>Misère — everything backwards</h3>
+      <ol>
+        <li>Making three in a row <b>loses you the game</b>.</li>
+        <li>So you are trying to force the other player into a line they cannot avoid.</li>
+        <li>On the big board it is the same idea one level up: claiming
+          <b>three mini-boards in a line loses</b>. Mini-boards are still won normally.</li>
+      </ol>
+      <p class="rule-caption">Much harder than it sounds — every instinct you have is now wrong.</p>
+    </div>
 
     <div id="rulesClassic" class="hidden">
       <p class="rule-caption">Classic 3×3 is the game everybody already knows.</p>
@@ -246,6 +272,7 @@
 
 <script src="js/glyphs.js"></script>
 <script src="js/variants.js"></script>
+<script src="js/rules.js"></script>
 <script src="js/engine.js"></script>
 <script src="js/bot.js"></script>
 <script src="js/effects.js"></script>

@@ -12,6 +12,7 @@
 
   var DEFAULTS = {
     variant: 'super',
+    rules: 'normal',
     mode: 'friend',
     difficulty: 'medium',
     first: 'you',
@@ -32,7 +33,8 @@
       var raw = localStorage.getItem(KEY);
       if (raw) {
         var saved = JSON.parse(raw);
-        ['variant', 'mode', 'difficulty', 'first', 'muted', 'iosHintSeen'].forEach(function (k) {
+        ['variant', 'rules', 'mode', 'difficulty', 'first', 'muted', 'iosHintSeen']
+          .forEach(function (k) {
           if (saved[k] !== undefined) prefs[k] = saved[k];
         });
         if (saved.score) prefs.score = saved.score;
@@ -148,42 +150,90 @@
     });
   }
 
+  function card(row, def, pressed, onPick, blockedNote) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mode-card';
+    btn.setAttribute('aria-pressed', String(pressed));
+
+    [['mode-icon', def.icon], ['mode-name', def.name], ['mode-blurb', def.blurb]]
+      .forEach(function (pair) {
+        var el = document.createElement('div');
+        el.className = pair[0];
+        el.textContent = pair[1];
+        btn.appendChild(el);
+      });
+
+    if (blockedNote) {
+      btn.disabled = true;
+      btn.classList.add('blocked');
+      var note = document.createElement('div');
+      note.className = 'mode-note';
+      note.textContent = blockedNote;
+      btn.appendChild(note);
+    } else {
+      btn.addEventListener('click', onPick);
+    }
+
+    row.appendChild(btn);
+    return btn;
+  }
+
   function renderVariants() {
     var row = $('variantRow');
+    var rules = STT.Rules.get(prefs.rules);
     row.innerHTML = '';
+
     STT.Variants.LIST.forEach(function (v) {
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'mode-card';
-      btn.dataset.variant = v.id;
-      btn.setAttribute('aria-pressed', String(prefs.variant === v.id));
+      /* Marks vanishing would un-claim won mini-boards, so cyclic pins the
+         game to a single board. */
+      var blocked = rules.singleBoardOnly && v.boards !== 1
+        ? rules.name + ' needs a single board'
+        : null;
 
-      [['mode-icon', v.icon], ['mode-name', v.name], ['mode-blurb', v.blurb]]
-        .forEach(function (pair) {
-          var el = document.createElement('div');
-          el.className = pair[0];
-          el.textContent = pair[1];
-          btn.appendChild(el);
-        });
-
-      btn.addEventListener('click', function () {
+      var btn = card(row, v, prefs.variant === v.id, function () {
         prefs.variant = v.id;
         FX.sound.click();
         renderAll();
         save();
-      });
-      row.appendChild(btn);
+      }, blocked);
+      btn.dataset.variant = v.id;
+    });
+  }
+
+  function renderRules() {
+    var row = $('rulesRow');
+    row.innerHTML = '';
+
+    STT.Rules.LIST.forEach(function (r) {
+      var btn = card(row, r, prefs.rules === r.id, function () {
+        prefs.rules = r.id;
+        /* Switching to a single-board-only rule set takes the board with it. */
+        if (r.singleBoardOnly && STT.Variants.get(prefs.variant).boards !== 1) {
+          prefs.variant = 'classic';
+        }
+        FX.sound.click();
+        renderAll();
+        save();
+      }, null);
+      btn.dataset.rules = r.id;
     });
   }
 
   function renderAll() {
+    renderRules();
     renderVariants();
 
     var variant = STT.Variants.get(prefs.variant);
+    var rules = STT.Rules.get(prefs.rules);
     $('subtitle').textContent = variant.tagline;
-    /* The rules panel carries a section per board shape. */
+
+    /* The rules panel carries a section per board shape, plus one for each
+       rule set that changes how you win. */
     $('rulesSuper').classList.toggle('hidden', variant.boards === 1);
     $('rulesClassic').classList.toggle('hidden', variant.boards !== 1);
+    $('rulesCyclic').classList.toggle('hidden', prefs.rules !== 'cyclic');
+    $('rulesMisere').classList.toggle('hidden', prefs.rules !== 'misere');
 
     document.querySelectorAll('#modeRow .mode-card').forEach(function (card) {
       card.setAttribute('aria-pressed', String(card.dataset.mode === prefs.mode));
@@ -229,6 +279,7 @@
 
     var cfg = {
       variant: prefs.variant,
+      rules: prefs.rules,
       mode: prefs.mode,
       difficulty: prefs.difficulty,
       firstMode: prefs.first,

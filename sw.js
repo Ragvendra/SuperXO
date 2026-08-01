@@ -4,7 +4,7 @@
 
    Bump CACHE whenever any file below changes — that is what makes returning
    players pick up a new version. */
-var CACHE = 'stt-v2';
+var CACHE = 'stt-v3';
 
 var ASSETS = [
   './',
@@ -15,6 +15,7 @@ var ASSETS = [
   './css/animations.css',
   './js/glyphs.js',
   './js/variants.js',
+  './js/rules.js',
   './js/engine.js',
   './js/bot.js',
   './js/effects.js',

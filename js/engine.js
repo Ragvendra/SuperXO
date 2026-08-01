@@ -51,11 +51,16 @@
     return state.boards.length === 1;
   }
 
+  /* A cyclic board never fills up, so without a ceiling two cautious players
+     (or two bots) could shuffle marks around forever. */
+  var CYCLIC_MOVE_LIMIT = 60;
+
   /* `first` lets the bot open a game without swapping the seats around, which
      would otherwise scramble the scoreboard between rounds. `variantId` picks
-     the board shape — see js/variants.js. */
-  function create(first, variantId) {
+     the board shape (js/variants.js) and `rulesId` how it is won (js/rules.js). */
+  function create(first, variantId, rulesId) {
     var v = STT.Variants.get(variantId);
+    var r = STT.Rules.get(rulesId);
     var boards = [];
     var status = [];
     var lines = [];
@@ -66,7 +71,13 @@
     }
     return {
       variant: v.id,
+      rules: r.id,
       sendRule: v.sendRule,
+      maxMarks: r.maxMarks,    // 0 = marks stay put; 3 = cyclic
+      misere: r.misere,        // true = making the line loses
+      /* Each player's marks as board*9+cell, oldest first. Only consulted
+         when maxMarks is set, but always maintained so undo stays simple. */
+      marks: { P1: [], P2: [] },
       boards: boards,          // boards[b][c] -> null | 'P1' | 'P2'
       boardStatus: status,     // null (open) | 'P1' | 'P2' | 'draw'
       boardLines: lines,       // winning triple inside each claimed board
@@ -121,6 +132,7 @@
     for (var b = 0; b < state.boards.length; b++) boards.push(state.boards[b].slice());
     return {
       boards: boards,
+      marks: { P1: state.marks.P1.slice(), P2: state.marks.P2.slice() },
       boardStatus: state.boardStatus.slice(),
       boardLines: state.boardLines.slice(),
       current: state.current,
@@ -138,6 +150,7 @@
 
   function restore(state, snap) {
     state.boards = snap.boards;
+    state.marks = snap.marks;
     state.boardStatus = snap.boardStatus;
     state.boardLines = snap.boardLines;
     state.current = snap.current;
@@ -159,8 +172,19 @@
     state.boards[b][c] = player;
     state.moveCount += 1;
     state.lastMove = { board: b, cell: c, player: player };
+    state.marks[player].push(b * 9 + c);
 
     var events = [{ type: 'placed', board: b, cell: c, player: player }];
+
+    /* Cyclic: placing beyond your allowance retires your oldest mark. This has
+       to happen before the win check, so a line you just broke doesn't count. */
+    if (state.maxMarks && state.marks[player].length > state.maxMarks) {
+      var gone = state.marks[player].shift();
+      var gb = Math.floor(gone / 9);
+      var gc = gone % 9;
+      state.boards[gb][gc] = null;
+      events.push({ type: 'vanished', board: gb, cell: gc, player: player });
+    }
 
     /* Did that claim the mini-board, or kill it? */
     var won = lineWinner(state.boards[b]);
@@ -179,10 +203,11 @@
     if (isSingle(state)) {
       var only = state.boardStatus[0];
       if (only === 'P1' || only === 'P2') {
-        state.winner = only;
+        /* Misère inverts the result: whoever made the line loses by it. */
+        state.winner = state.misere ? other(only) : only;
         state.winningLine = null;
         state.activeBoard = null;
-        events.push({ type: 'gameOver', winner: only, line: null });
+        events.push({ type: 'gameOver', winner: state.winner, line: null });
         return events;
       }
       if (only === 'draw') {
@@ -196,10 +221,11 @@
       /* Three claimed boards in a line wins the whole game. */
       var macro = lineWinner(macroCells(state));
       if (macro) {
-        state.winner = macro.player;
+        /* Same inversion one level up: claiming three boards in a line loses. */
+        state.winner = state.misere ? other(macro.player) : macro.player;
         state.winningLine = macro.line;
         state.activeBoard = null;
-        events.push({ type: 'gameOver', winner: macro.player, line: macro.line });
+        events.push({ type: 'gameOver', winner: state.winner, line: macro.line });
         return events;
       }
 
@@ -214,6 +240,16 @@
         events.push({ type: 'gameOver', winner: 'draw', line: null });
         return events;
       }
+    }
+
+    /* Nobody can fill a cyclic board, so call it a draw rather than let two
+       cautious players shuffle marks around indefinitely. */
+    if (state.maxMarks && state.moveCount >= CYCLIC_MOVE_LIMIT) {
+      state.winner = 'draw';
+      state.winningLine = null;
+      state.activeBoard = null;
+      events.push({ type: 'gameOver', winner: 'draw', line: null });
+      return events;
     }
 
     state.current = other(player);
@@ -257,8 +293,19 @@
     return n;
   }
 
+  /* Which mark disappears next if `player` places another. Null when they are
+     not yet at their limit, or the rules don't retire marks at all. */
+  function doomedMark(state, player) {
+    if (!state.maxMarks) return null;
+    if (state.marks[player].length < state.maxMarks) return null;
+    var m = state.marks[player][0];
+    return { board: Math.floor(m / 9), cell: m % 9 };
+  }
+
   STT.Engine = {
     LINES: LINES,
+    CYCLIC_MOVE_LIMIT: CYCLIC_MOVE_LIMIT,
+    doomedMark: doomedMark,
     create: create,
     isLegal: isLegal,
     playableBoards: playableBoards,

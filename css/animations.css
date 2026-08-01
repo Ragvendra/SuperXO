@@ -143,6 +143,34 @@
 
 .board.quake { animation: board-shake 0.36s ease; }
 
+/* ---- cyclic: marks retiring ---- */
+
+@keyframes vanish {
+  0%   { transform: scale(1) rotate(0deg); opacity: 1; }
+  35%  { transform: scale(1.25) rotate(-8deg); opacity: 1; }
+  100% { transform: scale(0.1) rotate(22deg); opacity: 0; }
+}
+
+.glyph.vanishing { animation: vanish 0.36s ease-in both; }
+
+/* The mark that goes next, so the rule reads as fair rather than random. */
+@keyframes doomed-pulse {
+  0%, 100% { opacity: 0.85; }
+  50%      { opacity: 0.3; }
+}
+
+.cell.doomed .glyph { animation: doomed-pulse 1.3s ease-in-out infinite; }
+
+.cell.doomed::after {
+  content: "";
+  position: absolute;
+  inset: 4%;
+  border-radius: 8px;
+  border: 2px dashed var(--c, #fff);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 @keyframes squish {
   0%   { transform: scale(1); }
   40%  { transform: scale(1.06, 0.86); }

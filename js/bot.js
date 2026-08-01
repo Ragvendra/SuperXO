@@ -44,12 +44,14 @@
   }
 
   /* What settles the game: on a single-board variant it is that board, on nine
-     it is a macro line. */
+     it is a macro line — then inverted if the rules are misère, since there
+     the player who completed the line is the one who lost. */
   function terminalWinner(s) {
-    if (s.status.length === 1) {
-      return s.status[0] === 'P1' || s.status[0] === 'P2' ? s.status[0] : null;
-    }
-    return macroWinner(s.status);
+    var maker = s.status.length === 1
+      ? (s.status[0] === 'P1' || s.status[0] === 'P2' ? s.status[0] : null)
+      : macroWinner(s.status);
+    if (!maker) return null;
+    return s.misere ? other(maker) : maker;
   }
 
   /* Would playing cell `c` complete a line for `p` in this mini-board? */
@@ -77,7 +79,10 @@
       status: state.boardStatus.slice(),
       current: state.current,
       active: state.activeBoard,
-      sendRule: state.sendRule
+      sendRule: state.sendRule,
+      maxMarks: state.maxMarks,
+      misere: state.misere,
+      order: { P1: state.marks.P1.slice(), P2: state.marks.P2.slice() }
     };
   }
 
@@ -98,8 +103,23 @@
 
   function make(s, mv) {
     var b = (mv / 9) | 0, c = mv % 9;
-    var undo = { b: b, c: c, status: s.status[b], active: s.active, current: s.current };
-    s.boards[b][c] = s.current;
+    var undo = {
+      b: b, c: c, status: s.status[b], active: s.active,
+      current: s.current, evicted: -1
+    };
+    var who = s.current;
+
+    s.boards[b][c] = who;
+    s.order[who].push(mv);
+
+    /* Cyclic: retire the oldest mark before judging the position, exactly as
+       the engine does. */
+    if (s.maxMarks && s.order[who].length > s.maxMarks) {
+      var gone = s.order[who].shift();
+      undo.evicted = gone;
+      s.boards[(gone / 9) | 0][gone % 9] = null;
+    }
+
     if (s.status[b] === null) {
       var w = winnerOf(s.boards[b]);
       if (w) s.status[b] = w;
@@ -113,6 +133,14 @@
   }
 
   function unmake(s, u) {
+    /* Undo in reverse: put back anything that vanished, then take the move
+       itself off the end of the order. */
+    if (u.evicted >= 0) {
+      s.boards[(u.evicted / 9) | 0][u.evicted % 9] = u.current;
+      s.order[u.current].unshift(u.evicted);
+    }
+    s.order[u.current].pop();
+
     s.boards[u.b][u.c] = null;
     s.status[u.b] = u.status;
     s.active = u.active;
@@ -210,7 +238,11 @@
 
     /* Being the one holding a free move is worth a little. */
     if (s.active === null) score += s.current === me ? 18 : -18;
-    return score;
+
+    /* Under misère every one of those judgements runs backwards — threats are
+       liabilities and owning squares is a burden — so flip the whole thing.
+       The terminal scores above are already correct via terminalWinner. */
+    return s.misere ? -score : score;
   }
 
   /* Cheap ordering score — deliberately avoids make/unmake so it stays fast
@@ -220,8 +252,14 @@
     var cells = s.boards[b];
     var me = s.current;
     var score = POS[b] * 8 + CELLB[c];
-    if (completesLine(cells, c, me)) score += 1200;
-    else if (completesLine(cells, c, other(me))) score += 600;
+
+    /* Ordering only affects how fast the search prunes, but getting it
+       backwards under misère would waste most of the cutoffs. */
+    var lineBias = 0;
+    if (completesLine(cells, c, me)) lineBias = 1200;
+    else if (completesLine(cells, c, other(me))) lineBias = 600;
+    score += s.misere ? -lineBias : lineBias;
+
     if (s.status[c] !== null) score -= 250;   // hands the opponent a free move
     return score;
   }
@@ -241,10 +279,18 @@
   function easyMove(state) {
     var moves = STT.Engine.legalMoves(state);
     var me = state.current;
-    var wins = moves.filter(function (m) {
+    var completing = moves.filter(function (m) {
       return completesLine(state.boards[m.board], m.cell, me);
     });
-    var pool = wins.length ? wins : moves;
+
+    /* Under misère a completed line is the thing to avoid, not to grab. */
+    var pool;
+    if (state.misere) {
+      pool = moves.filter(function (m) { return completing.indexOf(m) < 0; });
+      if (!pool.length) pool = moves;
+    } else {
+      pool = completing.length ? completing : moves;
+    }
     return pool[(Math.random() * pool.length) | 0];
   }
 
@@ -324,7 +370,9 @@
     if (moves.length === 1) return decode(moves[0]);
     /* Opening book. 81 legal moves can only mean an untouched nine-board game
        — safer than trusting a move counter that a caller may not have kept. */
-    if (s.boards.length === 9 && moves.length === 81) return { board: 4, cell: 4 };
+    if (s.boards.length === 9 && moves.length === 81 && !s.misere) {
+      return { board: 4, cell: 4 };
+    }
 
     moves = orderMoves(s, moves);
     var ctx = { nodes: 0, deadline: Date.now() + HARD_BUDGET_MS, aborted: false };

@@ -37,6 +37,7 @@ few seconds, so the last handful arrive more slowly than the rest.</p>
 <div id="out"></div>
 
 <script src="../js/variants.js"></script>
+<script src="../js/rules.js"></script>
 <script src="../js/engine.js"></script>
 <script src="../js/bot.js"></script>
 <script>
@@ -80,7 +81,7 @@ few seconds, so the last handful arrive more slowly than the rest.</p>
   /* Builds a position directly. The engine state is a plain object, so a test
      can set one up without having to find a legal 40-move path to it. */
   function pos(spec) {
-    var s = Engine.create();
+    var s = Engine.create(spec.first || 'P1', spec.variant, spec.rules);
     if (spec.cells) {
       Object.keys(spec.cells).forEach(function (b) {
         Object.keys(spec.cells[b]).forEach(function (c) {
@@ -521,6 +522,132 @@ few seconds, so the last handful arrive more slowly than the rest.</p>
         Engine.play(s, mv.board, mv.cell);
       }
       eq(s.winner, 'draw', 'hard vs hard opening with ' + first);
+    });
+  });
+
+  /* ---------------- misère ---------------- */
+
+  section('Misère');
+
+  test('on one board, making three in a row loses', function () {
+    var s = Engine.create('P1', 'classic', 'misere');
+    [0, 3, 1, 4].forEach(function (c) { Engine.play(s, 0, c); });
+    var events = Engine.play(s, 0, 2);        // P1 completes 0-1-2
+    eq(s.boardStatus[0], 'P1', 'P1 did make the line');
+    eq(s.winner, 'P2', 'but P2 wins the game');
+    eq(eventOf(events, 'gameOver').winner, 'P2', 'gameOver names the real winner');
+  });
+
+  test('on nine boards, claiming three in a line loses', function () {
+    var s = pos({
+      variant: 'super', rules: 'misere',
+      status: { 0: 'P1', 1: 'P1' },
+      cells: { 2: { 0: 'P1', 1: 'P1' } },
+      current: 'P1', active: 2
+    });
+    Engine.play(s, 2, 2);
+    eq(s.boardStatus[2], 'P1', 'P1 claimed the third board');
+    eq(s.winner, 'P2', 'which loses P1 the game');
+  });
+
+  test('misère still draws when nobody makes a line', function () {
+    var s = Engine.create('P1', 'classic', 'misere');
+    [0, 1, 2, 4, 3, 5, 7, 6, 8].forEach(function (c) { Engine.play(s, 0, c); });
+    eq(s.winner, 'draw', 'result');
+  });
+
+  test('hard refuses to complete a line under misère', function () {
+    /* P2 has 0 and 1; playing 2 would complete the line and lose outright. */
+    var s = pos({
+      variant: 'classic', rules: 'misere',
+      cells: { 0: { 0: 'P2', 1: 'P2', 6: 'P1', 7: 'P1' } },
+      current: 'P2', active: 0
+    });
+    var mv = Bot.chooseMove(s, 'hard');
+    ok(mv.cell !== 2, 'hard avoided the losing square, played ' + mv.cell);
+  });
+
+  /* ---------------- cyclic ---------------- */
+
+  section('Cyclic');
+
+  test('a fourth mark retires the oldest', function () {
+    var s = Engine.create('P1', 'classic', 'cyclic');
+    var events = null;
+    [0, 3, 1, 6, 8, 7].forEach(function (c) { events = Engine.play(s, 0, c); });
+    eq(s.marks.P1.length, 3, 'P1 is at their limit');
+    eq(Engine.doomedMark(s, 'P1').cell, 0, 'the oldest is flagged as next to go');
+
+    events = Engine.play(s, 0, 2);            // P1's fourth
+    ok(hasEvent(events, 'vanished'), 'vanished event');
+    eq(eventOf(events, 'vanished').cell, 0, 'the oldest mark went');
+    eq(s.boards[0][0], null, 'its square is empty again');
+    eq(s.marks.P1.length, 3, 'still only three marks');
+  });
+
+  test('a line broken by the retirement does not win', function () {
+    var s = Engine.create('P1', 'classic', 'cyclic');
+    /* P1 ends up holding 1, 8, 2 — the 0-1-2 line is broken by 0 retiring. */
+    [0, 3, 1, 6, 8, 7, 2].forEach(function (c) { Engine.play(s, 0, c); });
+    eq(s.boards[0][0], null, 'square 0 was vacated');
+    eq(s.winner, null, 'no winner');
+    eq(Engine.isLegal(s, 0, 0), true, 'the vacated square can be played again');
+  });
+
+  test('undo puts a retired mark back', function () {
+    var s = Engine.create('P1', 'classic', 'cyclic');
+    [0, 3, 1, 6, 8, 7].forEach(function (c) { Engine.play(s, 0, c); });
+    Engine.play(s, 0, 2);
+    eq(s.boards[0][0], null, 'retired before undo');
+    Engine.undo(s);
+    eq(s.boards[0][0], 'P1', 'mark restored');
+    eq(s.boards[0][2], null, 'the move itself undone');
+    eq(s.marks.P1.length, 3, 'mark list restored');
+  });
+
+  test('a cyclic board can still be won outright', function () {
+    var s = Engine.create('P1', 'classic', 'cyclic');
+    [0, 3, 1, 4];                             // reference only
+    Engine.play(s, 0, 0);
+    Engine.play(s, 0, 3);
+    Engine.play(s, 0, 1);
+    Engine.play(s, 0, 4);
+    var events = Engine.play(s, 0, 2);        // P1's third mark completes 0-1-2
+    eq(s.winner, 'P1', 'winner');
+    ok(hasEvent(events, 'boardWon'), 'boardWon event');
+    ok(!hasEvent(events, 'vanished'), 'nothing retired — only three marks placed');
+  });
+
+  test('cyclic games always terminate', function () {
+    /* No board ever fills, so the move cap is the only thing stopping this
+       running forever. */
+    for (var g = 0; g < 40; g++) {
+      var s = Engine.create(g % 2 ? 'P2' : 'P1', 'classic', 'cyclic');
+      while (!s.winner) {
+        var legal = Engine.legalMoves(s);
+        ok(legal.length > 0, 'a live game always has a move');
+        var m = legal[(Math.random() * legal.length) | 0];
+        Engine.play(s, m.board, m.cell);
+        ok(s.moveCount <= Engine.CYCLIC_MOVE_LIMIT, 'never runs past the cap');
+      }
+      ok(s.winner === 'P1' || s.winner === 'P2' || s.winner === 'draw', 'valid result');
+    }
+  });
+
+  test('every level returns legal moves under cyclic and misère', function () {
+    [['cyclic', 'classic'], ['misere', 'classic'], ['misere', 'super']].forEach(function (combo) {
+      ['easy', 'medium', 'hard'].forEach(function (level) {
+        var s = Engine.create('P1', combo[1], combo[0]);
+        var n = 0;
+        while (!s.winner && n < 14) {
+          var mv = Bot.chooseMove(s, level);
+          ok(mv, level + ' returned a move (' + combo[0] + '/' + combo[1] + ')');
+          ok(Engine.isLegal(s, mv.board, mv.cell),
+            level + ' returned an illegal move under ' + combo[0] + '/' + combo[1]);
+          Engine.play(s, mv.board, mv.cell);
+          n++;
+        }
+      });
     });
   });
 

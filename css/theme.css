@@ -186,6 +186,13 @@ body::after {
   cursor: not-allowed;
 }
 
+/* End game, waiting for a second tap to confirm. */
+.btn.confirming {
+  color: var(--danger);
+  border-color: var(--danger);
+  box-shadow: 0 0 20px -5px var(--danger);
+}
+
 .btn-primary {
   font-size: 1.15rem;
   padding: 16px 52px;
