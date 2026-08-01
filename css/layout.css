@@ -749,6 +749,17 @@
 
 .ios-hint b { color: var(--p1); }
 
+.ios-hint-note {
+  display: block;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.ios-hint-note b { color: var(--text); }
+
 .ios-hint-close {
   position: absolute;
   top: 6px;

@@ -4,7 +4,7 @@
 
    Bump CACHE whenever any file below changes — that is what makes returning
    players pick up a new version. */
-var CACHE = 'stt-v1';
+var CACHE = 'stt-v2';
 
 var ASSETS = [
   './',
