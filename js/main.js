@@ -161,13 +161,21 @@
     btn.className = 'mode-card';
     btn.setAttribute('aria-pressed', String(pressed));
 
-    [['mode-icon', def.icon], ['mode-name', def.name], ['mode-blurb', def.blurb]]
-      .forEach(function (pair) {
-        var el = document.createElement('div');
-        el.className = pair[0];
-        el.textContent = pair[1];
-        btn.appendChild(el);
-      });
+    var icon = document.createElement('div');
+    icon.className = 'mode-icon';
+    icon.textContent = def.icon;
+    btn.appendChild(icon);
+
+    /* Name, blurb and any note share a wrapper so a phone can sit the icon
+       beside the text instead of above it, which roughly thirds the height. */
+    var text = document.createElement('div');
+    text.className = 'mode-text';
+    [['mode-name', def.name], ['mode-blurb', def.blurb]].forEach(function (pair) {
+      var el = document.createElement('div');
+      el.className = pair[0];
+      el.textContent = pair[1];
+      text.appendChild(el);
+    });
 
     if (blockedNote) {
       btn.disabled = true;
@@ -175,11 +183,12 @@
       var note = document.createElement('div');
       note.className = 'mode-note';
       note.textContent = blockedNote;
-      btn.appendChild(note);
+      text.appendChild(note);
     } else {
       btn.addEventListener('click', onPick);
     }
 
+    btn.appendChild(text);
     row.appendChild(btn);
     return btn;
   }

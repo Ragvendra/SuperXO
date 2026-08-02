@@ -32,24 +32,34 @@
     <h1 class="title">SUPER<span>TIC TAC TOE</span></h1>
     <p class="subtitle" id="subtitle">Nine boards inside one. Win three in a row to take the game.</p>
 
-    <p class="section-label">Choose a board</p>
-    <div class="mode-row" id="variantRow"></div>
+    <div class="picker-group">
+      <p class="section-label">Choose a board</p>
+      <div class="mode-row" id="variantRow"></div>
+    </div>
 
-    <p class="section-label">Choose the rules</p>
-    <div class="mode-row" id="rulesRow"></div>
+    <div class="picker-group">
+      <p class="section-label">Choose the rules</p>
+      <div class="mode-row" id="rulesRow"></div>
+    </div>
 
-    <p class="section-label">Choose a game</p>
-    <div class="mode-row" id="modeRow">
-      <button type="button" class="mode-card" data-mode="friend" aria-pressed="true">
-        <div class="mode-icon">👥</div>
-        <div class="mode-name">Play with a Friend</div>
-        <div class="mode-blurb">Two players, one screen, taking turns.</div>
-      </button>
-      <button type="button" class="mode-card" data-mode="bot" aria-pressed="false">
-        <div class="mode-icon">🤖</div>
-        <div class="mode-name">Play with Bot</div>
-        <div class="mode-blurb">Take on the computer at three levels.</div>
-      </button>
+    <div class="picker-group">
+      <p class="section-label">Choose a game</p>
+      <div class="mode-row" id="modeRow">
+        <button type="button" class="mode-card" data-mode="friend" aria-pressed="true">
+          <div class="mode-icon">👥</div>
+          <div class="mode-text">
+            <div class="mode-name">Play with a Friend</div>
+            <div class="mode-blurb">Two players, one screen, taking turns.</div>
+          </div>
+        </button>
+        <button type="button" class="mode-card" data-mode="bot" aria-pressed="false">
+          <div class="mode-icon">🤖</div>
+          <div class="mode-text">
+            <div class="mode-name">Play with Bot</div>
+            <div class="mode-blurb">Take on the computer at three levels.</div>
+          </div>
+        </button>
+      </div>
     </div>
 
     <div class="players-row">

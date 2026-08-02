@@ -53,6 +53,15 @@
   text-align: center;
 }
 
+/* One decision per group. On desktop the grouping is implicit in the spacing;
+   on a phone each gets a panel of its own (see the responsive block). */
+.picker-group {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
 .mode-row {
   display: flex;
   gap: 16px;
@@ -821,6 +830,55 @@
   .controls .btn { padding: 9px 15px; font-size: 0.85rem; }
 }
 
+/* Phones: seven full-height cards stacked in a row read as one long list
+   rather than three separate decisions. Give each picker its own panel, and
+   lay the cards out with the icon beside the text so they take about a third
+   of the height. */
+@media (max-width: 640px) {
+  .picker-group {
+    max-width: 430px;
+    margin-bottom: 14px;
+    padding: 12px 12px 14px;
+    border-radius: var(--radius-lg);
+    background: rgba(255, 255, 255, 0.022);
+    border: 1px solid var(--line);
+  }
+
+  .picker-group .section-label { margin-bottom: 10px; }
+
+  .mode-row {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 8px;
+    width: 100%;
+    margin-bottom: 0;
+  }
+
+  .mode-card {
+    width: 100%;
+    max-width: none;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-align: left;
+    padding: 11px 14px;
+  }
+
+  .mode-card .mode-icon {
+    flex: none;
+    width: 34px;
+    font-size: 1.65rem;
+    text-align: center;
+  }
+
+  .mode-text { flex: 1; min-width: 0; }
+  .mode-card .mode-name { margin-top: 0; font-size: 0.92rem; }
+  .mode-card .mode-blurb { margin-top: 2px; font-size: 0.73rem; }
+  .mode-card .mode-note { margin-top: 4px; }
+
+  .subtitle { margin: 12px 0 18px; }
+}
+
 @media (max-width: 520px) {
   .screen {
     padding:
@@ -837,7 +895,6 @@
     padding: 7px;
   }
   .mini-cells { gap: 3px; padding: 5px; }
-  .mode-card { width: 100%; max-width: 320px; }
 }
 
 /* Landscape phones. Height is the constraint here, so the stacked layout above
