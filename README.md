@@ -49,6 +49,29 @@ Classic is there for a quick game and for teaching someone the symbols before th
 the big board. Be warned that two players who both know what they're doing will draw it every
 time — which is exactly the problem Super Tic Tac Toe was invented to solve.
 
+## Rules
+
+Pick one alongside the board. These change how a game is *won*, not what it's played on.
+
+| Rules | What changes |
+| --- | --- |
+| **Normal** | Three in a row wins. The standard game. |
+| **Cyclic** | You only ever have three marks. Place a fourth and your oldest vanishes — so the board never fills and **a draw is impossible**. |
+| **Misère** | Backwards: making three in a row **loses**. You're trying to force the other player into a line. |
+
+**Cyclic pins the board to Classic 3×3**, and the Super card greys out with a note saying so.
+Marks vanishing on the big board would un-claim already-won mini-boards, which isn't a coherent
+game. The mark about to disappear is shown ringed and pulsing, so you always know what you're
+giving up — and because a line broken by that retirement doesn't count, you can't win by
+accident. If neither player forces it within 60 moves, the game is called a draw.
+
+**Misère works on both boards**, inverting whatever ends the game. On Classic, three in a row
+loses. On Super it's the same idea one level up — claiming three mini-boards in a line loses,
+while mini-boards themselves are still won normally.
+
+Cyclic is the cure for Classic always ending level; Misère is the one that breaks people's
+brains, because every instinct they have is suddenly wrong.
+
 ## Game modes
 
 **Play with a Friend** — two people take turns on one screen.
@@ -111,10 +134,11 @@ X and O. Names, symbols, colours, mute state and the match score persist between
 
 ## Controls
 
-**Undo** takes back a move, correctly un-claiming a mini-board if that move won it. Against the
-bot it rewinds two plies — its reply and yours — so you land back on your own turn.
-**Restart** starts a fresh game keeping the score, **Reset score** clears the tally,
-**Symbols** returns to setup, **Rules** opens the how-to-play panel, and **Sound** mutes the
+**Undo** takes back a move, correctly un-claiming a mini-board if that move won it — and putting
+back a mark that Cyclic retired. Against the bot it rewinds two plies, its reply and yours, so
+you land back on your own turn. **Restart** starts a fresh game keeping the score, **Reset
+score** clears the tally, **End game** returns to the main menu (asking once to confirm if a
+game is actually in progress), **Rules** opens the how-to-play panel, and **Sound** mutes the
 synthesised effects.
 
 ## Accessibility
@@ -147,6 +171,7 @@ css/layout.css          board grid, HUD, setup screen, responsive rules
 css/animations.css      every keyframe, plus reduced-motion fallbacks
 js/glyphs.js            STT.Glyphs — SVG paths, emoji set, colour swatches
 js/variants.js          STT.Variants — the board shapes, as data
+js/rules.js             STT.Rules — how a game is won, as data
 js/engine.js            STT.Engine — the rules, with zero DOM code
 js/bot.js               STT.Bot — the three difficulty levels
 js/effects.js           STT.Effects — canvas particles and WebAudio sound
@@ -166,11 +191,13 @@ rulebook testable on its own.
 
 ## Tests
 
-Open **`tests/engine.test.html`** in a browser. It runs 37 assertions covering every rule above,
-undo, 300 random playouts checked for invariants, both board shapes, and the bot — that each
-level only ever returns legal moves, takes an immediate win, blocks one, answers within a second
-on Hard, and that Hard plays Classic perfectly (always a draw against itself, either side
-opening). All 37 currently pass.
+Open **`tests/engine.test.html`** in a browser. It runs 47 assertions covering every rule above,
+undo, 300 random playouts checked for invariants, both board shapes, both alternate rule sets,
+and the bot — that each level only ever returns legal moves in every board/rules combination,
+takes an immediate win, blocks one, refuses to complete a line under Misère, answers within a
+second on Hard, and that Hard plays Classic perfectly (always a draw against itself, either side
+opening). Cyclic gets its own termination test, since a board that never fills could otherwise
+loop forever. All 47 currently pass.
 
 Results appear one at a time with a live counter, rather than all at the end. The Hard bot
 searches for up to 400 ms per move, which is several seconds of blocking work across a test;
