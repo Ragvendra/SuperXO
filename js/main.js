@@ -27,6 +27,11 @@
 
   function $(id) { return document.getElementById(id); }
 
+  function show(id, visible) {
+    var el = $(id);
+    if (el) el.classList.toggle('hidden', !visible);
+  }
+
   function load() {
     prefs = JSON.parse(JSON.stringify(DEFAULTS));
     try {
@@ -229,11 +234,12 @@
     $('subtitle').textContent = variant.tagline;
 
     /* The rules panel carries a section per board shape, plus one for each
-       rule set that changes how you win. */
-    $('rulesSuper').classList.toggle('hidden', variant.boards === 1);
-    $('rulesClassic').classList.toggle('hidden', variant.boards !== 1);
-    $('rulesCyclic').classList.toggle('hidden', prefs.rules !== 'cyclic');
-    $('rulesMisere').classList.toggle('hidden', prefs.rules !== 'misere');
+       rule set that changes how you win. Guarded so a stale cached page can
+       never take the whole setup screen down over one missing section. */
+    show('rulesSuper', variant.boards !== 1);
+    show('rulesClassic', variant.boards === 1);
+    show('rulesCyclic', prefs.rules === 'cyclic');
+    show('rulesMisere', prefs.rules === 'misere');
 
     document.querySelectorAll('#modeRow .mode-card').forEach(function (card) {
       card.setAttribute('aria-pressed', String(card.dataset.mode === prefs.mode));

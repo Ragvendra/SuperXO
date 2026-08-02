@@ -79,7 +79,9 @@
 
     els.undoBtn.addEventListener('click', undo);
     els.restartBtn.addEventListener('click', restart);
-    els.endBtn.addEventListener('click', onEndGame);
+    /* Guarded: if a stale cached page ever pairs old markup with new code,
+       a missing control should cost that one button, not the whole game. */
+    if (els.endBtn) els.endBtn.addEventListener('click', onEndGame);
   }
 
   /* ---- leaving a game ---- */

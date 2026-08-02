@@ -4,7 +4,7 @@
 
    Bump CACHE whenever any file below changes — that is what makes returning
    players pick up a new version. */
-var CACHE = 'stt-v3';
+var CACHE = 'stt-v4';
 
 var ASSETS = [
   './',
@@ -32,9 +32,13 @@ var ASSETS = [
 self.addEventListener('install', function (e) {
   e.waitUntil(
     caches.open(CACHE).then(function (cache) { return cache.addAll(ASSETS); })
+      /* Take over as soon as the new files are all cached. Without this a new
+         worker waits until every tab of the site is closed — and a plain
+         reload does not count — so an update looks like a failed deploy. It is
+         safe because the page already running keeps the code it loaded; the
+         new version appears on the next load. */
+      .then(function () { return self.skipWaiting(); })
   );
-  /* Deliberately no skipWaiting: a new version takes over the next time the
-     app is fully closed, rather than swapping code out mid-game. */
 });
 
 self.addEventListener('activate', function (e) {
