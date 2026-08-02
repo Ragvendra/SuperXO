@@ -911,6 +911,26 @@
   .mode-card .mode-note { margin-top: 4px; }
 
   .subtitle { margin: 12px 0 18px; }
+
+  /* The board's contrast was tuned on a 620px desktop board where a cell is
+     about 60px. At phone scale a cell is nearer 31px and the same faint values
+     disappear, so the grid has to be drawn more firmly. */
+  .mini {
+    border-color: var(--line-bright);
+    background: rgba(10, 14, 36, 0.86);
+  }
+
+  .cell {
+    background: rgba(255, 255, 255, 0.07);
+    border-radius: 7px;
+  }
+
+  /* Softer dimming, and no blur — at this size blurring smears the very
+     borders that make the grid readable. */
+  .mini.dim {
+    opacity: 0.62;
+    filter: saturate(0.7);
+  }
 }
 
 @media (max-width: 520px) {
